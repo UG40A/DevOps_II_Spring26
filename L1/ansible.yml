@@ -1,0 +1,108 @@
+- name: Setup Docker, Postgres, and Keycloak on RHEL(-like) distro.
+  hosts: all
+  become: true
+  vars_files:
+    - secrets.yml
+  vars:
+    postgres_image: "postgres:15-alpine"
+    postgres_user: "postgres"
+    postgres_password: "{{ vault_postgres_pass }}"
+    postgres_db: "pstgre_db"
+
+    keycloak_image: "quay.io/keycloak/keycloak:latest"
+    keycloak_admin: "keycloak"
+    keycloak_admin_password: "{{ vault_keycloak_adm_pass }}"
+
+    network_name: "iam_network"
+
+  tasks:
+    - name: Install required system packages
+      dnf:
+        name:
+          - dnf-plugins-core
+          - python3-pip
+          - python3-libselinux
+        state: present
+
+    - name: Add Docker CE repository
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: "0644"
+
+    - name: Install Docker Engine
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Start and Enable Docker Service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Permit Keycloak traffic (port 8080)
+      firewalld:
+        port: 8080/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+      ignore_errors: false
+
+    - name: Install Docker SDK for Python
+      pip:
+        name:
+          - docker
+          - requests
+        state: present
+        executable: pip3
+
+    - name: Create a Docker network
+      docker_network:
+        name: "{{ network_name }}"
+
+    - name: Start Postgres container
+      docker_container:
+        name: postgres_db
+        image: "{{ postgres_image }}"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ network_name }}"
+        env:
+          POSTGRES_USER: "{{ postgres_user }}"
+          POSTGRES_PASSWORD: "{{ postgres_password }}"
+          POSTGRES_DB: "{{ postgres_db }}"
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+
+    - name: Start Keycloak container
+      docker_container:
+        name: keycloak
+        image: "{{ keycloak_image }}"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ network_name }}"
+        ports:
+          - "8080:8080"
+        command: ["start-dev"]
+        env:
+          KEYCLOAK_ADMIN: "{{ keycloak_admin }}"
+          KEYCLOAK_ADMIN_PASSWORD: "{{ keycloak_admin_password }}"
+          KC_DB: postgres
+          KC_DB_URL: "jdbc:postgresql://postgres_db:5432/{{ postgres_db }}"
+          KC_DB_USERNAME: "{{ postgres_user }}"
+          KC_DB_PASSWORD: "{{ postgres_password }}"
+          KC_HOSTNAME: localhost
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
