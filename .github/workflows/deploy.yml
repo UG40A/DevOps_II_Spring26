@@ -5,7 +5,8 @@ on:
     branches: [ "main" ]
     paths:
       - 'L3/**'
-
+  workflow_dispatch:
+  
 jobs:
   deploy:
     runs-on: ubuntu-latest
