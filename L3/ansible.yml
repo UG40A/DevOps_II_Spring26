@@ -1,0 +1,99 @@
+- name: Setup Kubelet
+  hosts: all
+  become: true
+  vars_files:
+    - secrets.yml
+
+  vars:
+    k8s_version: "1.29"
+    postgres_image: "postgres:15-alpine"
+    postgres_user: "postgres"
+    postgres_password: "{{ vault_postgres_pass }}"
+    postgres_db: "pstgre_db"
+    keycloak_image: "quay.io/keycloak/keycloak:latest"
+    keycloak_admin: "keycloak"
+    keycloak_admin_password: "{{ vault_keycloak_adm_pass }}"
+
+  tasks:
+    - name: Enable IPv4 forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+    - name: Install SELinux management tools
+      dnf:
+        name: policycoreutils-python-utils
+        state: present
+
+    - name: Add Docker CE repository
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+
+    - name: Install Containerd
+      dnf:
+        name: containerd.io
+        state: present
+
+    - name: Add Kubernetes RPM Repository
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes
+        baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/rpm/"
+        enabled: yes
+        gpgcheck: yes
+        repo_gpgcheck: yes
+        gpgkey: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/rpm/repodata/repomd.xml.key"
+
+    - name: Install Kubelet and CRICTL
+      dnf:
+        name:
+          - kubelet
+          - crictl
+        state: present
+
+    - name: Create Kubelet Config Directory
+      file:
+        path: /var/lib/kubelet
+        state: directory
+        mode: "0755"
+
+    - name: Create Postgres Data Directory
+      file:
+        path: /var/lib/postgresql/data
+        state: directory
+        mode: "0755"
+
+    - name: Create Static Pod Directory
+      file:
+        path: /etc/kubernetes/manifests
+        state: directory
+        mode: "0755"
+
+    - name: Deploy Pod from Jinja Template
+      template:
+        src: manifest.yml.j2
+        dest: /etc/kubernetes/manifests/keycloak.yaml
+        mode: "0644"
+
+    - name: Permit Keycloak traffic (port 8080)
+      firewalld:
+        port: 8080/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Ensure Kubelet is running
+      service:
+        name: kubelet
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart containerd
+      service: name=containerd state=restarted
+    - name: Restart kubelet
+      service: name=kubelet state=restarted

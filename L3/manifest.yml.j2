@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  labels:
+    app: test-app
+spec:
+  restartPolicy: Always
+
+  volumes:
+    - name: postgres-data
+      hostPath:
+        path: /opt/postgres/data
+        type: DirectoryOrCreate
+
+  containers:
+    - name: postgres-db
+      image: postgres:15-alpine
+
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+      ports:
+        - name: db-internal
+          containerPort: 5432
+
+      volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgres-data
+      env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "PLACEHOLDER_DB_PASS"
+        - name: POSTGRES_DB
+          value: "pstgre_db"
+
+    - name: keycloak
+      image: quay.io/keycloak/keycloak:latest
+      ports:
+        - name: http
+          containerPort: 8080
+          hostPort: 8080
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "1Gi"
+          cpu: "1000m"
+      command: ["start-dev"]
+      env:
+        - name: KEYCLOAK_ADMIN
+          value: "keycloak"
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          value: "PLACEHOLDER_ADMIN_PASS"
+        - name: KC_DB
+          value: "postgres"
+        - name: KC_DB_URL
+          value: "jdbc:postgresql://localhost:5432/pstgre_db"
+        - name: KC_DB_USERNAME
+          value: "postgres"
+        - name: KC_DB_PASSWORD
+          value: "PLACEHOLDER_DB_PASS"
+        - name: KC_HOSTNAME
+          value: "localhost"

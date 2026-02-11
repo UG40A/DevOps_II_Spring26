@@ -1,0 +1,33 @@
+name: Deploy L3
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'L3/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.HOST_IP }} >> ~/.ssh/known_hosts
+
+      - name: Run Ansible Playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          playbook: playbook.yml
+          directory: ./L3/
+
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          inventory: |
+            [all]
+            ${{ secrets.HOST_IP }} ansible_user=${{ secrets.HOST_USER }}
+          vault_password: ${{ secrets.VAULT_PASSWORD }}
