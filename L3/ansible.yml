@@ -52,7 +52,7 @@
       dnf:
         name:
           - kubelet
-          - crictl
+          - cri-tools
         state: present
 
     - name: Create Kubelet Config Directory
