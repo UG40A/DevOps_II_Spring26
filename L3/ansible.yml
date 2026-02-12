@@ -11,7 +11,7 @@
     postgres_password: "{{ vault_postgres_pass }}"
     postgres_db: "pstgre_db"
     keycloak_image: "quay.io/keycloak/keycloak:latest"
-    keycloak_admin: "keycloak"
+    keycloak_admin: "kc"
     keycloak_admin_password: "{{ vault_keycloak_adm_pass }}"
 
   tasks:
