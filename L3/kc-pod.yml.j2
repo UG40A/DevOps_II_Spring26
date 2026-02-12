@@ -68,9 +68,7 @@ spec:
         - name: KC_DB_PASSWORD
           value: "{{ vault_postgres_pass }}"
         - name: KC_HOSTNAME
-          value: "PLACEHOLDER_HOSTNAME"
-        - name: KC_HOSTNAME_STRICT_HTTPS
-          value: "true"
+          value: "{{ vault_kc_hostname  }}"
         - name: KC_PROXY_HEADERS
           value: "xforwarded"
         - name: KC_HTTP_ENABLED
