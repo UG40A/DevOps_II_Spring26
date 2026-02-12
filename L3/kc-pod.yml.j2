@@ -53,7 +53,7 @@ spec:
         limits:
           memory: "1Gi"
           cpu: "1000m"
-      command: ["/opt/keycloak/bin/kc.sh", "start"]
+      command: ["/opt/keycloak/bin/kc.sh", "start-dev"]
       env:
         - name: KEYCLOAK_ADMIN
           value: "{{ keycloak_admin }}"
