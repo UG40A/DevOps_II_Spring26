@@ -56,7 +56,7 @@ spec:
       command: ["/opt/keycloak/bin/kc.sh", "start-dev"]
       env:
         - name: KEYCLOAK_ADMIN
-          value: "{{ keycloak_admin }}"
+          value: "keycloak"
         - name: KEYCLOAK_ADMIN_PASSWORD
           value: "{{ vault_keycloak_adm_pass }}"
         - name: KC_DB
