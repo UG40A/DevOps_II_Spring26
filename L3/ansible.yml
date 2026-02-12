@@ -23,11 +23,6 @@
         state: present
         reload: yes
 
-    - name: Install SELinux management tools
-      dnf:
-        name: policycoreutils-python-utils
-        state: present
-
     - name: Add Docker CE repository
       get_url:
         url: https://download.docker.com/linux/centos/docker-ce.repo
@@ -37,6 +32,14 @@
       dnf:
         name: containerd.io
         state: present
+
+    - name: Configure containerd for SystemdCgroup (req. for RHEL10)
+      shell: |
+        mkdir -p /etc/containerd
+        containerd config default > /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+      changed_when: false
+      notify: Restart containerd
 
     - name: Add Kubernetes RPM Repository
       yum_repository:
@@ -73,18 +76,29 @@
         state: directory
         mode: "0755"
 
+    - name: Create Kubelet Configuration
+      copy:
+        dest: /var/lib/kubelet/config.yaml
+        content: |
+          apiVersion: kubelet.config.k8s.io/v1
+          kind: KubeletConfiguration
+          cgroupDriver: systemd
+          staticPodPath: /etc/kubernetes/manifests
+          authentication:
+            anonymous: { enabled: true }
+          authorization:
+            mode: AlwaysAllow
+
+    - name: Set Kubelet Systemd Args
+      copy:
+        dest: /etc/sysconfig/kubelet
+        content: 'KUBELET_EXTRA_ARGS="--config=/var/lib/kubelet/config.yaml"'
+
     - name: Deploy Pod from Jinja Template
       template:
-        src: manifest.yml.j2
-        dest: /etc/kubernetes/manifests/keycloak.yaml
+        src: kc-pod.yml.j2
+        dest: /etc/kubernetes/manifests/kc-pod.yaml
         mode: "0644"
-
-    - name: Permit Keycloak traffic (port 8080)
-      firewalld:
-        port: 8080/tcp
-        permanent: yes
-        state: enabled
-        immediate: yes
 
     - name: Ensure Kubelet is running
       service:
