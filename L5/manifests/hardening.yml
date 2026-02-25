@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harden
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hardened-ubuntu
+  namespace: harden
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hardened-ubuntu
+  template:
+    metadata:
+      labels:
+        app: hardened-ubuntu
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ubuntu
+          image: ubuntu:latest
+          command: ["sleep", "infinity"]
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

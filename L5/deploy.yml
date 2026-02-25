@@ -1,0 +1,73 @@
+- name: Deploy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Generate private keys for Alice (admin) and Bob (dev)
+      command: openssl genrsa -out {{ item }}.key 2048
+      args:
+        creates: "{{ item }}.key"
+      loop:
+        - alice
+        - bob
+
+    - name: Generate Certificate Signing Requests (CSRs)
+      command: openssl req -new -key {{ item.user }}.key -out {{ item.user }}.csr -subj "/CN={{ item.user }}/O={{ item.group }}"
+      args:
+        creates: "{{ item.user }}.csr"
+      loop:
+        - { user: alice, group: admins }
+        - { user: bob, group: devs }
+
+    - name: Submit CSRs to Kubernetes API
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: certificates.k8s.io/v1
+          kind: CertificateSigningRequest
+          metadata:
+            name: "{{ item }}-csr"
+          spec:
+            request: "{{ lookup('file', item + '.csr') | b64encode }}"
+            signerName: kubernetes.io/kube-apiserver-client
+            expirationSeconds: 86400
+            usages:
+              - client auth
+      loop:
+        - alice
+        - bob
+
+    - name: Approve CSRs in Kubernetes
+      command: kubectl certificate approve {{ item }}-csr
+      loop:
+        - alice
+        - bob
+      changed_when: false
+
+    - name: Extract signed certificates
+      shell: kubectl get csr {{ item }}-csr -o jsonpath='{.status.certificate}' | base64 -d > {{ item }}.crt
+      args:
+        creates: "{{ item }}.crt"
+      loop:
+        - alice
+        - bob
+
+    - name: Configure local kubeconfig with user credentials
+      shell: |
+        kubectl config set-credentials {{ item }} --client-certificate={{ item }}.crt --client-key={{ item }}.key --embed-certs=true
+        kubectl config set-context {{ item }}-context --cluster=cluster.local --user={{ item }}
+      loop:
+        - alice
+        - bob
+      changed_when: false
+
+    - name: Apply RBAC Configurations
+      kubernetes.core.k8s:
+        state: present
+        src: manifests/rbac.yml
+
+    - name: Apply Hardening Practices
+      kubernetes.core.k8s:
+        state: present
+        src: manifests/hardening.yml
