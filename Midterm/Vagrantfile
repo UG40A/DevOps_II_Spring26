@@ -1,0 +1,73 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require 'fileutils'
+require 'ipaddr'
+require 'socket'
+
+Vagrant.require_version ">= 2.0.0"
+
+$num_instances = 1
+$instance_name_prefix = "k8s"
+$os = "almalinux9" #
+$subnet = "172.18.8"
+$subnet_ipv6 ||= "fd3c:b398:0698:0756"
+
+$network_plugin = "cilium"
+
+SUPPORTED_OS = {
+  "almalinux9" => {box: "almalinux/9", user: "vagrant"}, #
+}
+
+Vagrant.configure("2") do |config|
+  config.vm.box = SUPPORTED_OS[$os][:box] #
+  config.ssh.username = SUPPORTED_OS[$os][:user] #
+  config.ssh.insert_key = false
+
+  (1..$num_instances).each do |i|
+    config.vm.define vm_name = "%s-%01d" % [$instance_name_prefix, i] do |node|
+      node.vm.hostname = vm_name
+
+      node.vm.provider :libvirt do |lv| #
+        lv.cpu_mode = "host-model" #
+        lv.cpus = 4
+        lv.default_prefix = 'kubespray'
+      #  lv.memory = (i == 1 ? 2560 : 4096)
+        lv.memory = 6144
+        lv.nested = true
+      end
+
+      ip = "#{$subnet}.#{i+100}"
+      ip6 = "#{$subnet_ipv6}::#{i+100}"
+      node.vm.network :private_network,
+        :ip => ip,
+        :libvirt__guest_ipv6 => 'yes',
+        :libvirt__ipv6_address => ip6,
+        :libvirt__ipv6_prefix => "64",
+        :libvirt__forward_mode => "none",
+        :libvirt__dhcp_enabled => false
+
+      node.vm.provision "shell", inline: "swapoff -a" #
+      
+      # IPv6 Route Logic
+      node.vm.provision "shell", inline: <<-SHELL
+        IFNAME=$(ip -4 addr show | grep '#{$subnet}' | awk '{print $NF}')
+        if [ -n "$IFNAME" ]; then
+          ip -6 r a #{$subnet_ipv6}::/64 dev $IFNAME || true
+          ip -6 r add default via #{$subnet_ipv6}::1 dev $IFNAME || true
+        fi
+      SHELL
+      
+      # SSH Key & DNS Injection
+      node.vm.provision "shell", inline: <<-SHELL
+        mkdir -p /home/vagrant/.ssh
+        echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKc3kGigXnV7En21LxJpAZ2bLeXUEIRbJ4jtxMMbup1r kubespray" >> /home/vagrant/.ssh/authorized_keys
+        chown -R vagrant:vagrant /home/vagrant/.ssh
+        chmod 700 /home/vagrant/.ssh
+        chmod 600 /home/vagrant/.ssh/authorized_keys
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+      SHELL
+    end
+  end
+end
