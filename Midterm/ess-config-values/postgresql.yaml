@@ -1,0 +1,24 @@
+postgres:
+  enabled: false
+
+synapse:
+  postgres:
+    host: 172.18.8.1
+    port: 5432
+    user: synapse_user
+    database: synapse
+    sslMode: prefer
+    password:
+      secret: ess-db-credentials
+      secretKey: synapse-password
+
+matrixAuthenticationService:
+  postgres:
+    host: 172.18.8.1
+    port: 5432
+    user: mas_user
+    database: matrixauthenticationservice
+    sslMode: prefer
+    password:
+      secret: ess-db-credentials
+      secretKey: mas-password

@@ -1,0 +1,27 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install Longhorn prerequisites
+      dnf:
+        name:
+          - iscsi-initiator-utils
+          - nfs-utils
+          - cryptsetup
+        state: present
+
+    - name: Enable and start iscsid
+      systemd:
+        name: iscsid
+        enabled: true
+        state: started
+
+    - name: Load iscsi_tcp kernel module
+      modprobe:
+        name: iscsi_tcp
+        state: present
+
+    - name: Persist iscsi_tcp module on boot
+      copy:
+        dest: /etc/modules-load.d/iscsi.conf
+        content: "iscsi_tcp\n"

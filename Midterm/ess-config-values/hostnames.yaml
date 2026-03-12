@@ -1,0 +1,21 @@
+# Copyright 2024-2025 New Vector Ltd
+# Copyright 2025 Element Creations Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
+elementAdmin:
+  ingress:
+    host: admin.groda.me
+elementWeb:
+  ingress:
+    host: chat.groda.me
+matrixAuthenticationService:
+  ingress:
+    host: account.groda.me
+matrixRTC:
+  ingress:
+    host: mrtc.groda.me
+serverName: groda.me
+synapse:
+  ingress:
+    host: matrix.groda.me
